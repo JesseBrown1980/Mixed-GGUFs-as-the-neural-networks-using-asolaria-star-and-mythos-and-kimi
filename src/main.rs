@@ -2,6 +2,7 @@
 //! put into a Taylor-Green vortex and pushed by a solar wind. Integer only.
 //!
 //! usage: mixed-gguf-net all DATA_DIR OUT_DIR [TICKS]
+//!        mixed-gguf-net virtual DATA_DIR COMMITTED_RESULTS_DIR OUT_DIR [TICKS]
 #![forbid(unsafe_code)]
 #![deny(clippy::float_arithmetic)]
 
@@ -19,6 +20,8 @@ use mixed_gguf_net::physics::{
 use mixed_gguf_net::sha256::{digest, hex, hex_digest};
 use std::fs;
 use std::path::Path;
+
+mod virtual_run;
 
 const P_MOD: i64 = 1_000_081;
 const TEN_TRILLION: i64 = 10_000_000_000_000;
@@ -492,8 +495,18 @@ fn render(lattice: &[u8], sums: &[RunSummary]) -> Vec<u8> {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if args.len() >= 5 && args[1] == "virtual" {
+        let ticks: usize = args.get(5).and_then(|v| v.parse().ok()).unwrap_or(576);
+        virtual_run::run(
+            Path::new(&args[2]),
+            Path::new(&args[3]),
+            Path::new(&args[4]),
+            ticks,
+        );
+        return;
+    }
     if args.len() < 4 || args[1] != "all" {
-        eprintln!("usage: mixed-gguf-net all DATA_DIR OUT_DIR [TICKS]");
+        eprintln!("usage: mixed-gguf-net all DATA_DIR OUT_DIR [TICKS] | virtual DATA_DIR COMMITTED_RESULTS_DIR OUT_DIR [TICKS]");
         std::process::exit(2);
     }
     let data = Path::new(&args[2]);

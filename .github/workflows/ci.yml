@@ -25,3 +25,7 @@ jobs:
         run: |
           cargo run --release -- all data out 576
           cd out && sha256sum -c ../results/SHA256SUMS
+      - name: virtual layer reproduces its receipts
+        run: |
+          cargo run --release -- virtual data results vout 576
+          cd vout && sha256sum -c ../results-virtual/SHA256SUMS

@@ -147,22 +147,91 @@ known short period, so the state must be run tick by tick. The bound on px makes
 the absorption finite: over 10¹³ ticks the lattice can take in, on average, less
 than one millionth of a unit of momentum per tick.
 
-## 3. Reproduce
+## 3. The virtual layer: balanced-trit weights over the three lattices
+
+Following [Virtual quantum neural networks](https://arxiv.org/pdf/2609.11327)
+(Zhao, Zhao, Li, Li & Chiribella), the three lattices (Asolaria A, shuffled S,
+uniform U) are combined with weights c ∈ {−1, 0, +1}³.
+
+- **The virtual state:** Σ cᵢ·stateᵢ, with slots in −6…+6. It is not a lattice
+  state, but every readout of it is exact.
+- **Linear readouts** (mass, px, intake) are Σ cᵢ·readoutᵢ.
+- **Quadratic readouts** of a field F are cᵀGc, with G_ik = Σ_cells Fᵢ·F_k.
+- **No sampling:** all 26 non-zero weight vectors (13 sign classes) are
+  evaluated exactly. The overhead ‖c‖₁ is recorded as a label only.
+
+Predictions were sealed in [`PREREG-VIRTUAL.hbp`](PREREG-VIRTUAL.hbp) (sha256
+`dfcfb977…`, commit `358b37b`) before the code was written. The run replays the
+committed experiment and asserts it against `results/` as it goes: all 228
+committed series rows and the three intake totals match. Receipts:
+[`results-virtual/`](results-virtual/).
+
+![Correlation of the three lattices over time](results-virtual/virtual-figure.png)
+
+**Figure.** Pairwise correlation, −1000…+1000‰ (gold A·S, blue A·U, grey S·U).
+- **Top:** the vortex (curl) fields with the wind on.
+- **Bottom:** the wind-response momentum fields (on − off).
+
+### Verdicts
+
+| ID | Prediction | Measured | Verdict |
+|---|---|---|---|
+| V1 | virtual intake = Σ cᵢ × branch totals, all 26 | holds for all 26 | **PASS** |
+| V2 | Gram diagonals = the committed branch enstrophies at every checkpoint | 228 of 228 rows | **PASS** |
+| V3 | every virtual quadratic readout ≥ 0 | all 26 × all checkpoints × all 6 Gram matrices | **PASS** |
+| V4 | wind-response momentum correlation ≥ 900‰ for every pair at t = 576 | 803, 817, 819‰ | **FAIL** |
+| V5 | wind-off vortex correlation A·S < 500‰ at t = 576 | −1‰ | **PASS** |
+| V6 | the T3 minimiser is balanced (Σc = 0) | c = (−1, +1, 0) | **PASS** |
+
+### What the virtual layer shows
+
+**The vortex fields are different in every lattice.**
+
+| t | 0 | 8 | 32 | 64 | 576 |
+|---|---|---|---|---|---|
+| vortex correlation A·S (wind off) | 370‰ | 40‰ | 14‰ | 8‰ | −1‰ |
+| vortex correlation A·U (wind off) | 590‰ | 99‰ | 34‰ | 14‰ | 0‰ |
+
+- At t = 0 the three lattices share part of their vortex field: the common
+  Taylor–Green imprint.
+- Within 8 ticks the shared part is gone, and by t = 576 the three vortex fields
+  are uncorrelated.
+- So although Asolaria and its shuffled twin take in the same wind momentum to
+  within 0.66% (§2.2), their vortex patterns have nothing in common. The
+  arrangement of the GGUF trits sets *where* the vortices are, not how many.
+
+**The wind's push is shared.** The correlation of the wind-response momentum
+fields rises from 0 to 803–819‰. It does not reach the 900‰ that V4 predicted.
+
+**The tasks** (the paper's three, exhaustive over the 26 weights):
+- **T1, cancellation:** no balanced weight cancels the wind-on vortex field; the
+  best, (0, +1, −1), leaves 999‰ of the uncorrelated value.
+- **T2, coherence:** for c = (1, 1, 1), the wind-response momentum adds coherently
+  (2,613‰ of the uncorrelated sum, out of a possible 3,000‰). The wind-response
+  vortex fields add incoherently (999‰).
+- **T3, virtual ground state:** c = (−1, +1, 0), shuffled minus Asolaria, has a
+  wind-on flow energy of 7,162,412. That is 6.9× below the smallest single
+  lattice (49,318,776): the two flows cancel 85%.
+
+## 4. Reproduce
 
 ```sh
 cargo clippy --release --all-targets -- -D warnings
 cargo test --release
 cargo run --release -- all data out 576
-cd out && sha256sum -c ../results/SHA256SUMS
+cd out && sha256sum -c ../results/SHA256SUMS && cd ..
+cargo run --release -- virtual data results vout 576
+cd vout && sha256sum -c ../results-virtual/SHA256SUMS
 ```
 
-The run takes about 8½ minutes on one core. CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))
+Each run takes about 8½ minutes on one core. CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))
 installs Rust 1.81.0 and then:
 - fails on any `f32`/`f64`, JSON, JS or Node file;
 - runs clippy and the tests;
 - checks the 27 GGUF inputs against the manifest;
 - reruns the full experiment and checks every output against the committed
-  `results/SHA256SUMS`.
+  `results/SHA256SUMS`;
+- reruns the virtual layer and checks it against `results-virtual/SHA256SUMS`.
 
 | Path | Contents |
 |---|---|
@@ -174,7 +243,9 @@ installs Rust 1.81.0 and then:
 | `src/physics.rs` | Taylor–Green, solar wind, enstrophy, front, hashes |
 | `src/sha256.rs`, `src/hbp.rs`, `src/png.rs` | SHA-256, HBP/HBI receipts, integer PNG writer |
 | `src/main.rs` | the experiment |
-| `tests/integer_network.rs` | SHA-256 vectors, the gate-table hash, GGUF reading, conservation |
+| `tests/integer_network.rs`, `tests/virtual_layer.rs` | SHA-256 vectors, the gate-table hash, GGUF reading, conservation |
+| `src/virtual_layer.rs`, `src/virtual_run.rs` | the balanced-trit weights, Gram matrices, exact readouts; the `virtual` command |
+| `results-virtual/` | `VIRTUAL.hbp` (verdicts, tasks, the 13 sign-class rows), `VIRTUAL-SERIES.hbp` (all six Gram matrices every 8 ticks), `virtual-figure.png`, `INDEX.hbi`, `SHA256SUMS` |
 | `results/` | `RESULT.hbp`, `SERIES.hbp` (every 8 ticks, all 27 outer modes), `CHANNELS.hbp`, `INDEX.hbi`, `SHA256SUMS`, `lattice.trits`, `figure.png` |
 
 Operator: Jesse Daniel Brown.

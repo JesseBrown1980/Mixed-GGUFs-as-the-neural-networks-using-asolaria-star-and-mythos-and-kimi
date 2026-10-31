@@ -9,3 +9,4 @@ pub mod lattice;
 pub mod physics;
 pub mod png;
 pub mod sha256;
+pub mod virtual_layer;

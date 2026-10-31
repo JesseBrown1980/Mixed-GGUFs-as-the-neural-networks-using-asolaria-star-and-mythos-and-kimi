@@ -119,6 +119,29 @@ pub fn momentum(f: &[u8]) -> Vec<[i64; 3]> {
         .collect()
 }
 
+/// 2 * curl j per cell, from central differences (each derivative is j(i+1) - j(i-1)).
+pub fn curl(j: &[[i64; 3]]) -> Vec<[i64; 3]> {
+    let w = |a: usize| (a + N - 1) % N;
+    let e = |a: usize| (a + 1) % N;
+    let mut out = vec![[0i64; 3]; j.len()];
+    for z in 0..N {
+        for y in 0..N {
+            for x in 0..N {
+                let d = |comp: usize, axis: usize| -> i64 {
+                    let (p, m) = match axis {
+                        0 => (idx(e(x), y, z), idx(w(x), y, z)),
+                        1 => (idx(x, e(y), z), idx(x, w(y), z)),
+                        _ => (idx(x, y, e(z)), idx(x, y, w(z))),
+                    };
+                    j[p][comp] - j[m][comp]
+                };
+                out[idx(x, y, z)] = [d(2, 1) - d(1, 2), d(0, 2) - d(2, 0), d(1, 0) - d(0, 1)];
+            }
+        }
+    }
+    out
+}
+
 /// Enstrophy in integer units: sum over cells of |2 * curl j|^2 with central differences
 /// (each derivative is j(i+1) - j(i-1), i.e. twice the gradient).
 pub fn enstrophy(j: &[[i64; 3]]) -> i64 {
