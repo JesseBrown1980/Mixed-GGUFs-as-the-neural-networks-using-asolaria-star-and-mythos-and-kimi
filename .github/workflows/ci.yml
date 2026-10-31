@@ -1,0 +1,27 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  rust-181:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust 1.81 with clippy
+        run: |
+          rustup toolchain install 1.81.0 --profile minimal --component clippy,rustfmt
+          rustup override set 1.81.0
+          rustc --version
+      - name: no float, no json, no node
+        run: |
+          ! grep -rnE '\bf(32|64)\b' src tests
+          ! git ls-files | grep -iE '\.(json|js|mjs|ts)$|package\.json'
+      - name: clippy
+        run: cargo clippy --release --all-targets -- -D warnings
+      - name: tests
+        run: cargo test --release
+      - name: verify GGUF inputs
+        run: |
+          cd data/ggufs && grep -o 'file=[^|]*|bytes=[^|]*|sha256=[0-9a-f]*' ../MANIFEST.hbp | sed -E 's/file=([^|]*)\|bytes=[^|]*\|sha256=(.*)/\2  \1/' | sha256sum -c
+      - name: full run reproduces the receipts
+        run: |
+          cargo run --release -- all data out 576
+          cd out && sha256sum -c ../results/SHA256SUMS
